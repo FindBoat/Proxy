@@ -28,6 +28,7 @@ void error(const char *msg) {
     exit(0);
 }
 
+
 void log_d(const char *tag, const string msg) {
     // Add timestamp on the log
     time_t now = time(0);
@@ -42,6 +43,11 @@ void log_d(const char *tag, const string msg) {
 	return;
     }
 
+}
+
+void log_d_sep() {
+    if(can_log)
+	cout << "----------------------------------------------------------------------------------------------------" << endl;
 }
 
 // Convert int to string

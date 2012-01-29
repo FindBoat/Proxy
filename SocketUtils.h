@@ -20,8 +20,19 @@
 #ifndef _SOCKETUTILS_H
 #define _SOCKETUTILS_H
 
-const int BUFFER_SIZE = 65535; //Use this buffer size whenever you want to open a buffer to store data
-const int MAX_CONCURRENT = 10; //The server should allow up to 10 concurrent connections
+const int BUFFER_SIZE = 1000000;
+const int MAX_CONCURRENT = 10;
+
+
+
+string dns(const char *host) {
+    char serv_ip[INET_ADDRSTRLEN];
+    struct hostent *hp = gethostbyname(host);
+    if (hp == NULL || hp->h_addr_list[0] == NULL)
+	error("DNS error");
+    inet_ntop(hp->h_addrtype, hp->h_addr_list[0], serv_ip, sizeof(serv_ip));
+    return string(serv_ip);
+}
 
 // this function create server at addr:port
 // after this function should call listen
@@ -66,10 +77,7 @@ int create_connection(const char *addr, const char *port) {
     return sockfd;
 }
 
-
 // The function m_write is to write all the data in the buffer through the socket    int sockfd;    int sockfd;
-
-
 // Input:  sockfd is the sending socket describer
 //         buffer is the sending buffer
 //         length is the size of the sending buffer
@@ -77,20 +85,25 @@ int create_connection(const char *addr, const char *port) {
 ssize_t m_write(int sockfd, const void *buffer, size_t length) {
     size_t left = length;
     ssize_t written = 0;
-    const char *buf;
+    char *buf;
     buf = (char *) buffer;
     while (left > 0) {
 	if ((written = write(sockfd, buf, left)) <= 0) {
 	    if (written < 0 && errno == EINTR)
 		written = 0; // Write again
-	    else
-		error("Writting Error");
+	    else {
+		perror("Writting Error");
+		//break;
+		written = 0;
+	    }
+	    
 	}
 	left -= written;
 	buf += written;
     }
     return length;
 }
+
 
 // The function m_read is to read all the data in the buffer through the socket
 // Input:  sockfd is the sending socket describer
@@ -107,16 +120,26 @@ ssize_t m_read(int sockfd, void *buffer, size_t length) {
 	    if (errno == EINTR)
 		nread = 0; // Read again
 	    else
-		error("Reading Error");
+		error("Reading error");
 	} else if (nread == 0)
 	    break; // EOF
 	left -= nread;
-	buf += nread;
-//	if (*(buf - 1) == '\n')
-//	    break;
+    	buf += nread;
     }
 
     return (length - left);
+}
+
+int m_send(int sockfd, string mes) {
+    int l = mes.length();
+    char buf[l];
+    m_write(sockfd, mes.c_str(), l);
+}
+
+string m_recv(int sockfd) {
+    char buf[BUFFER_SIZE];
+    m_read(sockfd, buf, BUFFER_SIZE);
+    return string(buf);
 }
 
 #endif

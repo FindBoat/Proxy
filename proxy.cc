@@ -12,63 +12,82 @@
 #include "SocketUtils.h"
 #include "HttpRequest.h"
 #include <stdio.h>
-
+#include <pthread.h>
 using namespace std;
+
+int connfd;
+void *proxy(void *arg) {
+    log_d("zhaohang", string("thread ") + to_string(pthread_self()) + string(" started"));
+
+    int connfd = *((int *) arg);
+    delete (int *) arg;
+    pthread_detach(pthread_self());
+
+    // receive data from client
+    log_d_sep();
+    
+    char r[BUFFER_SIZE];
+    ppread(connfd, r, BUFFER_SIZE);
+    string buffer(r);
+//    string buffer = m_recv(connfd);
+    
+    log_d("zhaohang", string("Receive data from client:\n") + buffer);
+    // create HttpRequest
+    log_d_sep();
+    log_d("zhaohang", "Format Http Request...");
+    HttpRequest request(buffer);
+    // reply invalid request
+    if (!request.is_valid()) {
+	m_send(connfd, request.generate_error_reply());
+	return 0;
+    }
+    log_d_sep();
+    // DNS
+    string serv_ip = dns(request.get_host().c_str());
+    // connect to server
+    int proxyfd = create_connection(serv_ip.c_str(), request.get_port().c_str());
+    log_d_sep();
+    log_d("zhaohang", string("Request data:\n") + request.get_request_message());
+    log_d_sep();
+
+    m_send(proxyfd, request.get_request_message());
+
+    log_d("zhaohang", "Request sent");
+    log_d_sep();
+
+    buffer = m_recv(proxyfd);
+    m_send(connfd, buffer);
+    
+    log_d("zhaohang", "Send back to client");
+    close(connfd);
+}
 
 int main(int argc, char *argv[]) {
     if (argc < 2)
 	 error("Invalid input");
     // create socket for listenning
-    int listenfd, connfd;
+    int listenfd;
+    int *connfd;
+    pthread_t tid;
     socklen_t clilen;
     struct sockaddr_in cliaddr;
     listenfd = create_server(NULL, argv[1]);
     listen(listenfd, MAX_CONCURRENT);
-    // accept the connection
-    clilen = sizeof(cliaddr);
-    connfd = accept(listenfd, (struct sockaddr *) &cliaddr, &clilen);
-    if (connfd < 0)
-	error("Connection Error");
-    log_d("zhaohang", "Connected with client");
-    ////////////////////////////////////////////////////////////////////////////////////////////////////
-    int count;
-    char buffer[BUFFER_SIZE];
-    bzero(buffer, BUFFER_SIZE);
-    m_read(connfd, buffer, BUFFER_SIZE);
+    while (true) {
+	// accept the connection
+	char tmp[BUFFER_SIZE];
+	clilen = sizeof(cliaddr);
+	connfd = new int;
+	*connfd = accept(listenfd, (struct sockaddr *) &cliaddr, &clilen);
+	if (*connfd < 0)
+	    error("Connection Error");
+	log_d("zhaohang", string("Connected with ") + inet_ntop(AF_INET, &cliaddr.sin_addr, tmp, sizeof(tmp))
+	      + string(":") + to_string(ntohs(cliaddr.sin_port)));
 
-    // create HttpRequest
-    HttpRequest request(buffer);
+	log_d_sep();
+	pthread_create(&tid, NULL, &proxy, connfd);
 
-    if (!request.is_valid()) {
-	//TODO 
     }
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////
-    // redirect
-    // DNS
-    struct hostent *hp = gethostbyname(request.get_host().c_str());
-    if (hp == NULL || hp->h_addr_list[0] == NULL)
-	error("DNS error");
-    char serv_ip[INET_ADDRSTRLEN];
-    inet_ntop(hp->h_addrtype, hp->h_addr_list[0], serv_ip, sizeof(serv_ip));
-
-    // connect to server
-    int proxyfd = create_connection(serv_ip, request.get_port().c_str());
-    char req_message[BUFFER_SIZE];
-    strcpy(req_message, request.get_request_message().c_str());
-    log_d("zhaohang", string("send request: ") + req_message);
-    m_write(proxyfd, req_message, BUFFER_SIZE);
-    bzero(buffer, BUFFER_SIZE);
-    m_read(proxyfd, buffer, BUFFER_SIZE);
-    fputs(buffer, stdout);
-
-    close(proxyfd);
-    // send back to client
-    				   
-    m_write(connfd, buffer, BUFFER_SIZE);
-
-    close(listenfd);
-
     return 0;
 
 }

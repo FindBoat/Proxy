@@ -39,24 +39,30 @@ private:
     void set_valid();
     void set_invalid_code(string code);
     bool is_path();
+    string get_error_message(string code);
+    void format();
+    string trim(string s);
 public:
-    HttpRequest(const char* request);
+    HttpRequest(string req);
     ~HttpRequest();
     string get_host();
     string get_port();
     bool is_valid();
     string get_request_message();
+    string generate_error_reply();
 };
 
-HttpRequest::HttpRequest(const char* request) {
+HttpRequest::HttpRequest(string req) {
+    log_d("zhaohang", "Init Http Request...");
     this->validity = true;
-    string req(request);
     int length = req.length();
     int header_num = 0;
     bool flag = true; // to get the request line
     int crlf = req.find_first_of(CRLF, 0);
     while (crlf != 0) {
 	if (crlf == -1) {
+	    if (req == "")
+		break;
 	    set_invalid_code(BAD_REQUEST);
 	    return;
 	}
@@ -76,9 +82,12 @@ HttpRequest::HttpRequest(const char* request) {
 	log_d("zhaohang", this->header_lines[i]);
     this->header_num = header_num;
 
+    log_d("zhaohang", "Set request line...");
     set_request_line();
+    log_d("zhaohang", "Parse url...");
     parse_url();
     set_valid();
+    format();
     
 }
 
@@ -146,7 +155,9 @@ void HttpRequest::parse_url() {
 	}
 	this->host = this->uri.substr(7, slash - 7); // slash - 7 is the count
 	this->uri = this->uri.substr(slash, this->uri.length());
-
+	if (this->header_num == MAX_HEADER_NUM)
+	    error("Too many header lines");
+	this->header_lines[this->header_num++] = string("Host:") + this->host;
     }
 
     // set port #
@@ -195,10 +206,46 @@ bool HttpRequest::is_valid() {
 string HttpRequest::get_request_message() {
     string message = this->method + string(" ") + this->uri + string(" ")
 	+ this->version + CRLF;
-    for (int i = 0; i < this->header_num; i++)
+    for (int i = 0; i < this->header_num; i++) {
+	// TODO
+	if (this->header_lines[i].find("Encoding") != -1)
+	    continue;
 	message += this->header_lines[i] + CRLF;
+    }
     message += CRLF;
     return message;
+}
+
+string HttpRequest::get_error_message(string code) {
+    if (code == BAD_REQUEST)
+	return string("Bad Request");
+    if (code == NOT_IMPLEMENTED)
+	return string("Not Implemented");
+    error("Status code error");
+}
+
+string HttpRequest::generate_error_reply() {
+    if (!this->is_valid()) {
+	string re = this->version + string(" ") + this->status_code + string(" ")
+	    + get_error_message(this->status_code) + CRLF + CRLF;
+	return re;
+    }
+    error("Request is valid");
+}
+
+string HttpRequest::trim(string s) {
+    s.erase(s.find_last_not_of(" ")+1); 
+    return s.erase(0,s.find_first_not_of(" ")); 
+}
+
+void HttpRequest::format() {
+    this->request_line = trim(this->request_line);
+    this->method = trim(this->method);
+    this->uri = trim(this->uri);
+    this->version = trim(this->version);
+    this->host = trim(this->host);
+    this->port = trim(this->port);
+    
 }
 
 #endif
