@@ -27,7 +27,7 @@ void *proxy(void *arg) {
     log_d_sep();
     
     char r[BUFFER_SIZE];
-    ppread(connfd, r, BUFFER_SIZE);
+    read(connfd, r, BUFFER_SIZE);
     string buffer(r);
 //    string buffer = m_recv(connfd);
     
