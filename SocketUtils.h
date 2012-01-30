@@ -130,12 +130,13 @@ ssize_t m_read(int sockfd, void *buffer, size_t length) {
     return (length - left);
 }
 
+// function for write implemented by m_write
 int m_send(int sockfd, string mes) {
     int l = mes.length();
     char buf[l];
     m_write(sockfd, mes.c_str(), l);
 }
-
+// function for read implemented by m_read
 string m_recv(int sockfd) {
     char buf[BUFFER_SIZE];
     m_read(sockfd, buf, BUFFER_SIZE);

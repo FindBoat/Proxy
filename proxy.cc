@@ -29,7 +29,6 @@ void *proxy(void *arg) {
     char r[BUFFER_SIZE];
     read(connfd, r, BUFFER_SIZE);
     string buffer(r);
-//    string buffer = m_recv(connfd);
     
     log_d("zhaohang", string("Receive data from client:\n") + buffer);
     // create HttpRequest
@@ -44,6 +43,7 @@ void *proxy(void *arg) {
     log_d_sep();
     // DNS
     string serv_ip = dns(request.get_host().c_str());
+    
     // connect to server
     int proxyfd = create_connection(serv_ip.c_str(), request.get_port().c_str());
     log_d_sep();
@@ -55,10 +55,26 @@ void *proxy(void *arg) {
     log_d("zhaohang", "Request sent");
     log_d_sep();
 
-    buffer = m_recv(proxyfd);
-    m_send(connfd, buffer);
+    // buffer = m_recv(proxyfd);
+    // log_d("zhaohang", "get response from server");    
+    // cout << buffer << endl;
+    // log_d_sep();
+    // m_send(connfd, buffer);
+
+    char buf[BUFFER_SIZE];
+    int count;
+    count = m_read(proxyfd, buf, BUFFER_SIZE);
+    m_write(connfd, buf, count);
+    // char buf[BUFFER_SIZE];
+    // int count = 0;
+    // while (m_read(proxyfd, buf, BUFFER_SIZE) > 0) {
+    // 	string s(buf);
+    // 	m_write(connfd, buf, s.length());
+    // 	char buf[BUFFER_SIZE];
+//    }
     
-    log_d("zhaohang", "Send back to client");
+    log_d("zhaohang", string("Send back to client"));
+    log_d("zhaohang", string("thread ") + to_string(pthread_self()) + string(" finished"));
     close(connfd);
 }
 
