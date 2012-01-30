@@ -42,7 +42,7 @@ void *proxy(void *arg) {
 	log_d_sep();
 	log_d_sep("zhaohang", string("Request data:\n") + request.get_request_message());
 	strcpy(buf, request.get_request_message().c_str());
-	m_write(proxyfd, buf, BUFFER_SIZE);
+	m_write(proxyfd, buf, request.get_request_message().length());
 	log_d_sep("zhaohang", "Request sent");
 	int count;
 	while ((count = m_read(proxyfd, buf, BUFFER_SIZE)) > 0)
@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
 		      + string(":") + to_string(ntohs(cliaddr.sin_port)));
 	    pthread_create(&tid, NULL, &proxy, connfd);
 	}
-    } catch (int) {
+    } catch (int& ex) {
     }
     return 0;
 
