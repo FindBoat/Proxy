@@ -25,10 +25,10 @@ const int MAX_CONCURRENT = 10;
 
 
 
-string dns(const char *host) {
+string dns(const char *host) throw(int) {
     char serv_ip[INET_ADDRSTRLEN];
     struct hostent *hp = gethostbyname(host);
-    if (hp == NULL || hp->h_addr_list[0] == NULL)
+    if (hp == NULL || hp->h_addr_list[0] == NULL) 
 	error("DNS error");
     inet_ntop(hp->h_addrtype, hp->h_addr_list[0], serv_ip, sizeof(serv_ip));
     return string(serv_ip);
@@ -36,7 +36,7 @@ string dns(const char *host) {
 
 // this function create server at addr:port
 // after this function should call listen
-int create_server(const char *addr, const char *port) {
+int create_server(const char *addr, const char *port) throw(int) {
     int listenfd;
     struct sockaddr_in servaddr;
     // Create socket
@@ -82,7 +82,7 @@ int create_connection(const char *addr, const char *port) {
 //         buffer is the sending buffer
 //         length is the size of the sending buffer
 // Return: return the size of data sent
-ssize_t m_write(int sockfd, const void *buffer, size_t length) {
+ssize_t m_write(int sockfd, const void *buffer, size_t length) throw(int) {
     size_t left = length;
     ssize_t written = 0;
     char *buf;
@@ -92,9 +92,7 @@ ssize_t m_write(int sockfd, const void *buffer, size_t length) {
 	    if (written < 0 && errno == EINTR)
 		written = 0; // Write again
 	    else {
-		perror("Writting Error");
-		//break;
-		written = 0;
+		error("writting error");
 	    }
 	    
 	}
@@ -110,7 +108,7 @@ ssize_t m_write(int sockfd, const void *buffer, size_t length) {
 //         buffer is the sending buffer
 //         length is the size of the sending buffer
 // Return: The size of data read
-ssize_t m_read(int sockfd, void *buffer, size_t length) {
+ssize_t m_read(int sockfd, void *buffer, size_t length) throw(int) {
     size_t left = length;
     ssize_t nread = 0;
     char *buf;
@@ -130,17 +128,5 @@ ssize_t m_read(int sockfd, void *buffer, size_t length) {
     return (length - left);
 }
 
-// function for write implemented by m_write
-int m_send(int sockfd, string mes) {
-    int l = mes.length();
-    char buf[l];
-    m_write(sockfd, mes.c_str(), l);
-}
-// function for read implemented by m_read
-string m_recv(int sockfd) {
-    char buf[BUFFER_SIZE];
-    m_read(sockfd, buf, BUFFER_SIZE);
-    return string(buf);
-}
 
 #endif

@@ -18,16 +18,13 @@ using namespace std;
 #ifndef _LOGUTILS_H
 #define _LOGUTILS_H
 
-bool can_log = true;
-
+static bool can_log = true;
 
 // Print error, example: error("dequeue failure");
-void error(const char *msg) {
-//    cerr << msg << endl;
+void error(const char *msg) throw(int) {
     perror(msg);
-    exit(0);
+    throw 0;
 }
-
 
 void log_d(const char *tag, const string msg) {
     // Add timestamp on the log
@@ -36,18 +33,21 @@ void log_d(const char *tag, const string msg) {
     char t[50] ={0};
     const char format[] = "%H:%M:%S"; 
     strftime(t, sizeof(t), format, dtPostDate);
-
     // Output the log
     if (strcmp(tag, "zhaohang") == 0 && can_log) {
 	cout << t << " " << tag << ": " << msg << endl; 
 	return;
     }
-
 }
 
 void log_d_sep() {
     if(can_log)
 	cout << "----------------------------------------------------------------------------------------------------" << endl;
+}
+
+void log_d_sep(const char *tag, const string msg) {
+    log_d(tag, msg);
+    log_d_sep();
 }
 
 // Convert int to string

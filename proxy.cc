@@ -15,66 +15,41 @@
 #include <pthread.h>
 using namespace std;
 
-int connfd;
 void *proxy(void *arg) {
-    log_d("zhaohang", string("thread ") + to_string(pthread_self()) + string(" started"));
-
+    char buf[BUFFER_SIZE];
+    log_d_sep("zhaohang", string("thread ") + to_string(pthread_self()) + string(" started"));
     int connfd = *((int *) arg);
     delete (int *) arg;
-    pthread_detach(pthread_self());
-
-    // receive data from client
-    log_d_sep();
-    
-    char r[BUFFER_SIZE];
-    read(connfd, r, BUFFER_SIZE);
-    string buffer(r);
-    
-    log_d("zhaohang", string("Receive data from client:\n") + buffer);
-    // create HttpRequest
-    log_d_sep();
-    log_d("zhaohang", "Format Http Request...");
-    HttpRequest request(buffer);
-    // reply invalid request
-    if (!request.is_valid()) {
-	m_send(connfd, request.generate_error_reply());
-	return 0;
+    try {
+	pthread_detach(pthread_self());
+	// receive data from client
+	read(connfd, buf, BUFFER_SIZE);
+	log_d_sep("zhaohang", string("Receive data from client:\n") + buf);
+	// create HttpRequest
+	log_d_sep("zhaohang", "Format Http Request...");
+	HttpRequest request(buf);
+	// reply invalid request
+	if (!request.is_valid()) {
+	    strcpy(buf, request.generate_error_reply().c_str());
+	    m_write(connfd, buf, request.generate_error_reply().length());
+	    close(connfd);
+	    return 0;
+	}
+	// DNS
+	string serv_ip = dns(request.get_host().c_str());
+	// connect to server
+	int proxyfd = create_connection(serv_ip.c_str(), request.get_port().c_str());
+	log_d_sep();
+	log_d_sep("zhaohang", string("Request data:\n") + request.get_request_message());
+	strcpy(buf, request.get_request_message().c_str());
+	m_write(proxyfd, buf, BUFFER_SIZE);
+	log_d_sep("zhaohang", "Request sent");
+	int count;
+	while ((count = m_read(proxyfd, buf, BUFFER_SIZE)) > 0)
+	    m_write(connfd, buf, count);
+	log_d("zhaohang", string("thread ") + to_string(pthread_self()) + string(" finished"));
+    } catch (int) {
     }
-    log_d_sep();
-    // DNS
-    string serv_ip = dns(request.get_host().c_str());
-    
-    // connect to server
-    int proxyfd = create_connection(serv_ip.c_str(), request.get_port().c_str());
-    log_d_sep();
-    log_d("zhaohang", string("Request data:\n") + request.get_request_message());
-    log_d_sep();
-
-    m_send(proxyfd, request.get_request_message());
-
-    log_d("zhaohang", "Request sent");
-    log_d_sep();
-
-    // buffer = m_recv(proxyfd);
-    // log_d("zhaohang", "get response from server");    
-    // cout << buffer << endl;
-    // log_d_sep();
-    // m_send(connfd, buffer);
-
-    char buf[BUFFER_SIZE];
-    int count;
-    count = m_read(proxyfd, buf, BUFFER_SIZE);
-    m_write(connfd, buf, count);
-    // char buf[BUFFER_SIZE];
-    // int count = 0;
-    // while (m_read(proxyfd, buf, BUFFER_SIZE) > 0) {
-    // 	string s(buf);
-    // 	m_write(connfd, buf, s.length());
-    // 	char buf[BUFFER_SIZE];
-//    }
-    
-    log_d("zhaohang", string("Send back to client"));
-    log_d("zhaohang", string("thread ") + to_string(pthread_self()) + string(" finished"));
     close(connfd);
 }
 
@@ -87,22 +62,22 @@ int main(int argc, char *argv[]) {
     pthread_t tid;
     socklen_t clilen;
     struct sockaddr_in cliaddr;
-    listenfd = create_server(NULL, argv[1]);
-    listen(listenfd, MAX_CONCURRENT);
-    while (true) {
-	// accept the connection
-	char tmp[BUFFER_SIZE];
-	clilen = sizeof(cliaddr);
-	connfd = new int;
-	*connfd = accept(listenfd, (struct sockaddr *) &cliaddr, &clilen);
-	if (*connfd < 0)
-	    error("Connection Error");
-	log_d("zhaohang", string("Connected with ") + inet_ntop(AF_INET, &cliaddr.sin_addr, tmp, sizeof(tmp))
-	      + string(":") + to_string(ntohs(cliaddr.sin_port)));
-
-	log_d_sep();
-	pthread_create(&tid, NULL, &proxy, connfd);
-
+    try {
+	listenfd = create_server(NULL, argv[1]);
+	listen(listenfd, MAX_CONCURRENT);
+	while (true) {
+	    // accept the connection
+	    char tmp[BUFFER_SIZE];
+	    clilen = sizeof(cliaddr);
+	    connfd = new int;
+	    *connfd = accept(listenfd, (struct sockaddr *) &cliaddr, &clilen);
+	    if (*connfd < 0)
+		error("Connection Error");
+	    log_d_sep("zhaohang", string("Connected with ") + inet_ntop(AF_INET, &cliaddr.sin_addr, tmp, sizeof(tmp))
+		      + string(":") + to_string(ntohs(cliaddr.sin_port)));
+	    pthread_create(&tid, NULL, &proxy, connfd);
+	}
+    } catch (int) {
     }
     return 0;
 

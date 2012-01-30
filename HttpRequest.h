@@ -43,7 +43,7 @@ private:
     void format();
     string trim(string s);
 public:
-    HttpRequest(string req);
+    HttpRequest(char* req);
     ~HttpRequest();
     string get_host();
     string get_port();
@@ -52,8 +52,9 @@ public:
     string generate_error_reply();
 };
 
-HttpRequest::HttpRequest(string req) {
+HttpRequest::HttpRequest(char *r) {
     log_d("zhaohang", "Init Http Request...");
+    string req(r);
     this->validity = true;
     int length = req.length();
     int header_num = 0;
