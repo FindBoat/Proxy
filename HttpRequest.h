@@ -7,7 +7,6 @@
 // Author:      Hang Zhao (zhaohang@umich.edu)
 // UMID:        84158329
 // Description: This file provides the class HttpRequest
-
 #include "LogUtils.h"
 using namespace std;
 
@@ -15,20 +14,15 @@ using namespace std;
 #define _HTTPREQUEST_H
 
 #define MAX_HEADER_NUM 20
-
+#define DEFAULT_PORT "80"
 #define BAD_REQUEST "400"
 #define NOT_IMPLEMENTED "501"
-
 #define CRLF string("\r\n")
+#define CR string("\r")
 
 class HttpRequest {
 private:
-    string request_line;
-    string method;
-    string uri;
-    string version;
-    string host;
-    string port;
+    string request_line, method, uri, version, host, port;
     string header_lines[MAX_HEADER_NUM];
     int header_num;
     bool validity;
@@ -40,8 +34,8 @@ private:
     void set_invalid_code(string code);
     bool is_path();
     string get_error_message(string code);
-    void format();
     string trim(string s);
+    string format(string req);
 public:
     HttpRequest(char* req);
     ~HttpRequest();
@@ -59,7 +53,8 @@ HttpRequest::HttpRequest(char *r) {
     int length = req.length();
     int header_num = 0;
     bool flag = true; // to get the request line
-    int crlf = req.find_first_of(CRLF, 0);
+    int crlf = req.find_first_of(CR, 0);
+    // parse request to req_line & req_headers
     while (crlf != 0) {
 	if (crlf == -1) {
 	    if (req == "")
@@ -74,26 +69,18 @@ HttpRequest::HttpRequest(char *r) {
 	    flag = false;
 	} else
 	    this->header_lines[header_num++] = req.substr(0, crlf);
-	req = req.substr(crlf + 2, length);
-	crlf = req.find_first_of(CRLF, 0);
+	if (req[crlf + 1] != '\n')
+	    req = req.substr(crlf + 1, length);
+	else
+	    req = req.substr(crlf + 2, length);
+	crlf = req.find_first_of(CR, 0);
     }
-    log_d("zhaohang", string("request line: ") + this->request_line);
-    log_d("zhaohang", string("header lines: "));
-    for (int i = 0; i < header_num; i++)
-	log_d("zhaohang", this->header_lines[i]);
     this->header_num = header_num;
-
     log_d("zhaohang", "Set request line...");
     set_request_line();
     log_d("zhaohang", "Parse url...");
     parse_url();
     set_valid();
-    format();
-    
-}
-
-HttpRequest::~HttpRequest() {
-    
 }
 
 void HttpRequest::set_request_line() {
@@ -113,64 +100,56 @@ void HttpRequest::set_request_line() {
 	}
 	this->uri = line.substr(0, space);
 	this->version = line.substr(space + 1, line.length());
-
+	// set port #
+	int colon = this->uri.find_last_of(":");
+	if (colon == -1 || (colon != -1 && this->uri.substr(colon + 1, 2) == "//"))
+	    this->port = DEFAULT_PORT;
+	else { 
+	    this->port = this->uri.substr(colon + 1, this->uri.length());
+	    this->uri = this->uri.substr(0, colon); 
+	}
 	log_d("zhaohang", string("set method = ") + this->method);
 	log_d("zhaohang", string("set uri = ") + this->uri);
+	log_d("zhaohang", string("set port = ") + this->port);
 	log_d("zhaohang", string("set version = ") + this->version);
     }
-
 }
+
 void HttpRequest::parse_url() {
     if (!this->validity)
 	return;
     bool has_host = false;
     // find Host tag
     for (int i = 0; i < this->header_num; i++) {
-	if (this->header_lines[i].substr(0, 4) == "Host") {
+	if (this->header_lines[i].substr(0, 4) == "Host" || this->header_lines[i].substr(0, 4) == "host") {
 	    // parse host and uri
 	    has_host = true;
 	    this->host = this->header_lines[i].substr(5, this->header_lines[i].length()); // 5 is for "Host:"
-	    // set uri
-	    if (!is_path()) {
-		int slash = this->uri.find_first_of("/", 7); // 7 is for "Http://"
-		if (slash == -1) {
-		    set_invalid_code(BAD_REQUEST);
-		    return;
-		}
-		this->uri = this->uri.substr(slash, this->uri.length());
-	    }
+	    this->host = trim(this->host);
 	    break;
 	}
     }
-    // if there's no host in header lines
+    if (is_path()) {
+	if (has_host)
+	    return;
+	set_invalid_code(BAD_REQUEST);
+	return;		
+    }
+    int slash = this->uri.find_first_of("/", 7); // 7 is for "http://"
+    if (slash == -1) {
+	set_invalid_code(BAD_REQUEST);
+	return;
+    }
     if (!has_host) {
-	if (is_path()) {
-	    set_invalid_code(BAD_REQUEST);
-	    return;
-	}
-	// parse uri from host
-	int slash = this->uri.find_first_of("/", 7); // 7 is for "Http://"
-	if (slash == -1) {
-	    set_invalid_code(BAD_REQUEST);
-	    return;
-	}
 	this->host = this->uri.substr(7, slash - 7); // slash - 7 is the count
-	this->uri = this->uri.substr(slash, this->uri.length());
 	if (this->header_num == MAX_HEADER_NUM)
 	    error("Too many header lines");
-	this->header_lines[this->header_num++] = string("Host:") + this->host;
+	this->header_lines[this->header_num++] = string("Host: ") + this->host;
     }
-
-    // set port #
-    int colon = this->uri.find_first_of(":", 0);
-    if (colon != -1) {
-	this->port = this->uri.substr(colon + 1, this->uri.length());
-	this->uri = this->uri.substr(0, colon);
-    } else
-	this->port = "80";
-
+    this->uri = this->uri.substr(slash, this->uri.length());
+    if (this->uri.length() == 0)
+	this->uri = "/";
     log_d("zhaohang", string("set Host = ") + this->host + string(", uri = ") + this->uri + string(", port = ") + this->port);
-
 }
 
 void HttpRequest::set_valid() {
@@ -180,6 +159,8 @@ void HttpRequest::set_valid() {
 	this->validity = false;
 	this->status_code = NOT_IMPLEMENTED;
     }
+    if (this->version == "HTTP/1.1")
+	this->version = "HTTP/1.0";
 }
 
 void HttpRequest::set_invalid_code(string code) {
@@ -207,12 +188,8 @@ bool HttpRequest::is_valid() {
 string HttpRequest::get_request_message() {
     string message = this->method + string(" ") + this->uri + string(" ")
 	+ this->version + CRLF;
-    for (int i = 0; i < this->header_num; i++) {
-	// TODO
-	if (this->header_lines[i].find("Encoding") != -1)
-	    continue;
+    for (int i = 0; i < this->header_num; i++) 
 	message += this->header_lines[i] + CRLF;
-    }
     message += CRLF;
     return message;
 }
@@ -227,7 +204,7 @@ string HttpRequest::get_error_message(string code) {
 
 string HttpRequest::generate_error_reply() {
     if (!this->is_valid()) {
-	string re = this->version + string(" ") + this->status_code + string(" ")
+	string re = string("HTTP/1.0 ") + this->status_code + string(" ")
 	    + get_error_message(this->status_code) + CRLF + CRLF;
 	return re;
     }
@@ -239,14 +216,7 @@ string HttpRequest::trim(string s) {
     return s.erase(0,s.find_first_not_of(" ")); 
 }
 
-void HttpRequest::format() {
-    this->request_line = trim(this->request_line);
-    this->method = trim(this->method);
-    this->uri = trim(this->uri);
-    this->version = trim(this->version);
-    this->host = trim(this->host);
-    this->port = trim(this->port);
-    
-}
+
+HttpRequest::~HttpRequest() {}
 
 #endif

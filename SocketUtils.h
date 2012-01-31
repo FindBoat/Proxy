@@ -24,13 +24,20 @@ const int BUFFER_SIZE = 1000000;
 const int MAX_CONCURRENT = 10;
 
 
-
+// this function is a miracle!!!
 string dns(const char *host) throw(int) {
+    log_d("zhaohang", string("dns: ") + string(host));
     char serv_ip[INET_ADDRSTRLEN];
-    struct hostent *hp = gethostbyname(host);
-    if (hp == NULL || hp->h_addr_list[0] == NULL) 
+    struct hostent hostbuf, *hp;
+    size_t hstbuflen = 1024;
+    char tmphstbuf[hstbuflen];
+    int res;
+    int herr;
+    res = gethostbyname_r(host, &hostbuf, tmphstbuf, hstbuflen, &hp, &herr);
+    if (res != 0) 
 	error("DNS error");
     inet_ntop(hp->h_addrtype, hp->h_addr_list[0], serv_ip, sizeof(serv_ip));
+    log_d("zhaohang", string("dns return: ") + string(host) + string(": ") + string(serv_ip)); 
     return string(serv_ip);
 }
 
@@ -60,6 +67,7 @@ int create_server(const char *addr, const char *port) throw(int) {
 
 // this function create connection to addr:port
 int create_connection(const char *addr, const char *port) {
+    log_d("zhaohang", string("Connecting to ") + addr + string(":") + port + string("..."));
     int sockfd;
     struct sockaddr_in servaddr;
     // Create the socket

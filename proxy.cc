@@ -49,6 +49,7 @@ void *proxy(void *arg) {
 	    m_write(connfd, buf, count);
 	log_d("zhaohang", string("thread ") + to_string(pthread_self()) + string(" finished"));
     } catch (int) {
+	log_d("zhaohang", string("thread ") + to_string(pthread_self()) + string(" terminated"));
     }
     close(connfd);
 }
