@@ -59,7 +59,6 @@ string format_request(string req) {
 }
 
 string format_url(string url) {
-//    url = to_lowercase(url);
     if (is_path(url))
 	return url;
     if (url.substr(0, 3) == "www") // www.google.com/
@@ -78,12 +77,23 @@ bool split(string s, string d, string *res, int *num) {
 		return false;
 	    res[k++] = part;
 	}
+	if (index + d.length() >= str.length())
+	    break;
 	str = str.substr(index + d.length(), str.length());
 	index = str.find_first_of(d);
     }
     if (str.length() != 0)
 	res[k++] = str;
     *num = k;
+    return true;
+}
+
+bool is_number(string s) {
+    int n = s.length();
+    for (int i = 0; i < n; i++) {
+	if (s[i] < '0' || s[i] > '9')
+	    return false;
+    }
     return true;
 }
 

@@ -34,7 +34,7 @@ string dns(const char *host) throw(int) {
     int res;
     int herr;
     res = gethostbyname_r(host, &hostbuf, tmphstbuf, hstbuflen, &hp, &herr);
-    if (res != 0) 
+    if (res != 0 || hp == NULL) 
 	error("DNS error");
     inet_ntop(hp->h_addrtype, hp->h_addr_list[0], serv_ip, sizeof(serv_ip));
     log_d("zhaohang", string("dns return: ") + string(host) + string(": ") + string(serv_ip)); 

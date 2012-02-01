@@ -77,17 +77,21 @@ void HttpRequest::set_request_line() {
 	this->version = to_uppercase(res[2]);
 	// set port #
 	int colon = this->uri.find_last_of(":");
-	if (colon == -1 || (colon != -1 && this->uri.substr(colon + 1, 2) == "//"))
+	if (colon == -1 || (colon != -1 && this->uri.substr(colon + 1, 2) == "//")) {
 	    this->port = DEFAULT_PORT;
-	else { 
+	} else if (is_number(this->uri.substr(colon + 1, this->uri.length()))) {
 	    this->port = this->uri.substr(colon + 1, this->uri.length());
+	    if (this->port[this->port.length() - 1] == '/')
+		this->port = this->port.substr(0, this->port.length() - 1);
 	    this->uri = this->uri.substr(0, colon); 
+	} else {
+	    this->port = DEFAULT_PORT;
 	}
 	this->uri = format_url(this->uri);
 	log_d("zhaohang", string("set method = ") + this->method);
 	log_d("zhaohang", string("set uri = ") + this->uri);
 	log_d("zhaohang", string("set port = ") + this->port);
-	log_d("zhaohang", string("set version = ") + this->version);
+	log_d("zhaohang", string("set version = ") + this->version);	
     }
 }
 
@@ -102,6 +106,10 @@ void HttpRequest::parse_url() {
 	    has_host = true;
 	    this->host = this->header_lines[i].substr(5, this->header_lines[i].length()); // 5 is for "Host:"
 	    this->host = trim(this->host);
+	    /* if ((int) this->host.find_first_of(":") == -1) */
+	    /* 	this->header_lines[i] = string("Host: ") + this->host + string(":") + this->port; */
+	    /* else */
+	    /* 	this->header_lines[i] = string("Host: ") + this->host; */
 	    break;
 	}
     }
@@ -119,6 +127,7 @@ void HttpRequest::parse_url() {
 	this->host = this->uri.substr(7, slash - 7); // slash - 7 is the count
 	if (this->header_num == MAX_SPIT)
 	    error("Too many header lines");
+	//this->header_lines[this->header_num++] = string("Host: ") + this->host + string(":") + this->port;
 	this->header_lines[this->header_num++] = string("Host: ") + this->host;
     }
     this->uri = this->uri.substr(slash, this->uri.length());
