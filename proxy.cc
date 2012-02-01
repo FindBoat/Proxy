@@ -52,6 +52,7 @@ void *proxy(void *arg) {
 	log_d("zhaohang", string("thread ") + to_string(pthread_self()) + string(" terminated"));
     }
     close(connfd);
+    return 0;
 }
 
 int main(int argc, char *argv[]) {

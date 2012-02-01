@@ -8,22 +8,21 @@
 // UMID:        84158329
 // Description: This file provides the class HttpRequest
 #include "LogUtils.h"
+#include "StringUtils.h"
 using namespace std;
 
 #ifndef _HTTPREQUEST_H
 #define _HTTPREQUEST_H
 
-#define MAX_HEADER_NUM 20
 #define DEFAULT_PORT "80"
 #define BAD_REQUEST "400"
 #define NOT_IMPLEMENTED "501"
 #define CRLF string("\r\n")
-#define CR string("\r")
 
 class HttpRequest {
 private:
     string request_line, method, uri, version, host, port;
-    string header_lines[MAX_HEADER_NUM];
+    string header_lines[MAX_SPIT];
     int header_num;
     bool validity;
     string status_code;
@@ -32,9 +31,7 @@ private:
     void parse_url();
     void set_valid();
     void set_invalid_code(string code);
-    bool is_path();
     string get_error_message(string code);
-    string trim(string s);
     string format(string req);
 public:
     HttpRequest(char* req);
@@ -50,32 +47,15 @@ HttpRequest::HttpRequest(char *r) {
     log_d("zhaohang", "Init Http Request...");
     string req(r);
     this->validity = true;
-    int length = req.length();
-    int header_num = 0;
-    bool flag = true; // to get the request line
-    int crlf = req.find_first_of(CR, 0);
-    // parse request to req_line & req_headers
-    while (crlf != 0) {
-	if (crlf == -1) {
-	    if (req == "")
-		break;
-	    set_invalid_code(BAD_REQUEST);
-	    return;
-	}
-	if (header_num == MAX_HEADER_NUM)
-	    error("Too many header lines");
-	if (flag) {
-	    this->request_line = req.substr(0, crlf);
-	    flag = false;
-	} else
-	    this->header_lines[header_num++] = req.substr(0, crlf);
-	if (req[crlf + 1] != '\n')
-	    req = req.substr(crlf + 1, length);
-	else
-	    req = req.substr(crlf + 2, length);
-	crlf = req.find_first_of(CR, 0);
-    }
-    this->header_num = header_num;
+    req = format_request(req);
+    string res[MAX_SPIT];
+    int num;
+    if (!split(req, CRLF, res, &num))
+	error("Too many header lines");
+    this->request_line = res[0];
+    for (int i = 1; i < num; i++)
+	this->header_lines[i - 1] = res[i];
+    this->header_num = num - 1;
     log_d("zhaohang", "Set request line...");
     set_request_line();
     log_d("zhaohang", "Parse url...");
@@ -84,22 +64,17 @@ HttpRequest::HttpRequest(char *r) {
 }
 
 void HttpRequest::set_request_line() {
-    string line = this->request_line;
     if (this->validity) {
-	int space = line.find_first_of(" ", 0);
-	if (space == -1) {
+	string res[MAX_SPIT];
+	int num;
+	split(this->request_line, " ", res, &num);
+	if (num != 3) {
 	    set_invalid_code(BAD_REQUEST);
 	    return;
 	}
-	this->method = line.substr(0, space);
-	line = line.substr(space + 1, line.length());
-	space = line.find_first_of(" ", 0);
-	if (space == -1) {
-	    set_invalid_code(BAD_REQUEST);
-	    return;
-	}
-	this->uri = line.substr(0, space);
-	this->version = line.substr(space + 1, line.length());
+	this->method = to_uppercase(res[0]);
+	this->uri = res[1];
+	this->version = to_uppercase(res[2]);
 	// set port #
 	int colon = this->uri.find_last_of(":");
 	if (colon == -1 || (colon != -1 && this->uri.substr(colon + 1, 2) == "//"))
@@ -108,6 +83,7 @@ void HttpRequest::set_request_line() {
 	    this->port = this->uri.substr(colon + 1, this->uri.length());
 	    this->uri = this->uri.substr(0, colon); 
 	}
+	this->uri = format_url(this->uri);
 	log_d("zhaohang", string("set method = ") + this->method);
 	log_d("zhaohang", string("set uri = ") + this->uri);
 	log_d("zhaohang", string("set port = ") + this->port);
@@ -121,7 +97,7 @@ void HttpRequest::parse_url() {
     bool has_host = false;
     // find Host tag
     for (int i = 0; i < this->header_num; i++) {
-	if (this->header_lines[i].substr(0, 4) == "Host" || this->header_lines[i].substr(0, 4) == "host") {
+	if (to_uppercase(this->header_lines[i].substr(0, 4)) == "HOST") {
 	    // parse host and uri
 	    has_host = true;
 	    this->host = this->header_lines[i].substr(5, this->header_lines[i].length()); // 5 is for "Host:"
@@ -129,37 +105,34 @@ void HttpRequest::parse_url() {
 	    break;
 	}
     }
-    if (is_path()) {
-	if (has_host)
-	    return;
-	set_invalid_code(BAD_REQUEST);
+    if (is_path(this->uri)) {
+	if (!has_host)
+	    set_invalid_code(BAD_REQUEST);
 	return;		
     }
     int slash = this->uri.find_first_of("/", 7); // 7 is for "http://"
     if (slash == -1) {
-	set_invalid_code(BAD_REQUEST);
-	return;
+	this->uri += "/";
+	slash = this->uri.length() - 1;
     }
     if (!has_host) {
 	this->host = this->uri.substr(7, slash - 7); // slash - 7 is the count
-	if (this->header_num == MAX_HEADER_NUM)
+	if (this->header_num == MAX_SPIT)
 	    error("Too many header lines");
 	this->header_lines[this->header_num++] = string("Host: ") + this->host;
     }
     this->uri = this->uri.substr(slash, this->uri.length());
-    if (this->uri.length() == 0)
-	this->uri = "/";
     log_d("zhaohang", string("set Host = ") + this->host + string(", uri = ") + this->uri + string(", port = ") + this->port);
 }
 
 void HttpRequest::set_valid() {
     if (!this->validity)
 	return;
-    if (this->method != "GET" && this->method != "get") {
+    if (this->method != "GET") {
 	this->validity = false;
 	this->status_code = NOT_IMPLEMENTED;
     }
-    if (this->version == "HTTP/1.1")
+    if (this->version == "HTTP/1.1" || this->version == "HTTP/0.9")
 	this->version = "HTTP/1.0";
 }
 
@@ -167,10 +140,6 @@ void HttpRequest::set_invalid_code(string code) {
     this->validity = false;
     this->status_code = code;
     log_d("zhaohang", string("Invalid: ") + code);
-}
-
-bool HttpRequest::is_path() {
-    return (this->uri.at(0) == '/');
 }
 
 string HttpRequest::get_host() {
@@ -200,6 +169,7 @@ string HttpRequest::get_error_message(string code) {
     if (code == NOT_IMPLEMENTED)
 	return string("Not Implemented");
     error("Status code error");
+    return string();
 }
 
 string HttpRequest::generate_error_reply() {
@@ -209,13 +179,8 @@ string HttpRequest::generate_error_reply() {
 	return re;
     }
     error("Request is valid");
+    return string();
 }
-
-string HttpRequest::trim(string s) {
-    s.erase(s.find_last_not_of(" ")+1); 
-    return s.erase(0,s.find_first_not_of(" ")); 
-}
-
 
 HttpRequest::~HttpRequest() {}
 
