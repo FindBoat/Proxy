@@ -36,7 +36,7 @@ void *proxy(void *arg) {
 	    return 0;
 	}
 	// DNS
-	string serv_ip = dns(request.get_host().c_str());
+	string serv_ip = super_dns(request.get_host().c_str());
 	// connect to server
 	int proxyfd = create_connection(serv_ip.c_str(), request.get_port().c_str());
 	log_d_sep();
@@ -64,10 +64,10 @@ int main(int argc, char *argv[]) {
     pthread_t tid;
     socklen_t clilen;
     struct sockaddr_in cliaddr;
-    try {
-	listenfd = create_server(NULL, argv[1]);
-	listen(listenfd, MAX_CONCURRENT);
-	while (true) {
+    listenfd = create_server(NULL, argv[1]);
+    listen(listenfd, MAX_CONCURRENT);
+    while (true) {
+	try {
 	    // accept the connection
 	    char tmp[BUFFER_SIZE];
 	    clilen = sizeof(cliaddr);
@@ -78,9 +78,10 @@ int main(int argc, char *argv[]) {
 	    log_d_sep("zhaohang", string("Connected with ") + inet_ntop(AF_INET, &cliaddr.sin_addr, tmp, sizeof(tmp))
 		      + string(":") + to_string(ntohs(cliaddr.sin_port)));
 	    pthread_create(&tid, NULL, &proxy, connfd);
+	} catch (int& ex) {
 	}
-    } catch (int& ex) {
     }
+    close(listenfd);
     return 0;
 
 }

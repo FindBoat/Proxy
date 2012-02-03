@@ -9,6 +9,7 @@
 // Description: This file provides several implementations of socket
 
 #include "LogUtils.h"
+#include "DNSCache.h"
 #include <sys/types.h> 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -22,7 +23,6 @@
 
 const int BUFFER_SIZE = 1000000;
 const int MAX_CONCURRENT = 10;
-
 
 // this function is a miracle!!!
 string dns(const char *host) throw(int) {
@@ -39,6 +39,15 @@ string dns(const char *host) throw(int) {
     inet_ntop(hp->h_addrtype, hp->h_addr_list[0], serv_ip, sizeof(serv_ip));
     log_d("zhaohang", string("dns return: ") + string(host) + string(": ") + string(serv_ip)); 
     return string(serv_ip);
+}
+
+string super_dns(const char *host) throw(int) {
+    string serv_ip = search_dns_cache(string(host));
+    if (serv_ip.length() == 0) {
+	serv_ip = dns(host);
+	insert_cache(string(host), serv_ip);
+    }
+    return serv_ip;
 }
 
 // this function create server at addr:port
